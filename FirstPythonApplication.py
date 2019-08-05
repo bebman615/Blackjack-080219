@@ -6,16 +6,13 @@ class Game:
     def __init__(self):
         self.gameDeck = deck()
         self.players = self.GetPlayerList()
+        self.nonDealerPlayerList = self.players[:len(self.players) - 1]
         self.nonDealerPlayers = len(self.players) - 1
 
     def GetPlayerList(self):
-        enterInputString = "Please enter the number of players. \n" 
-        playerCount = input(enterInputString)
-        verifyInput = InputValidation(playerCount)
-        while verifyInput.ValidNumPlayers() == False:
-            verifyInput.outputValue = input(enterInputString)
-        playerList = [player(input("Please enter a player name. \n")) for x in range(0,verifyInput.outputValue)]
-        playerList.insert(len(playerList), dealer("Dealer"))
+        playerCount = InputValidation(input("Please enter the number of players. \n")).ValidNumPlayers()
+        playerList = [player(input("Please enter a player name. \n")) for x in range(0,playerCount)]
+        playerList.append(dealer("Dealer"))
         return playerList
 
     def RunGame(self):
@@ -24,13 +21,18 @@ class Game:
 
     def InitializeGame(self):
         print("___________________________ \n")
+        print(" Current Chip Stacks: \n {} \n {} \n___________________________ \n".format(" || ".join([player.name for player in self.nonDealerPlayerList]),
+        " || ".join([str(player.chipStack) + (" " * (len(player.name) - len(str(player.chipStack))))  for player in self.nonDealerPlayerList])))
+
+        for player in self.players:
+            player.currentBet = player.AskBet()
+        print("___________________________ \n")
         for player in self.players:
             player.hand.HitCard(self.gameDeck, 2)
             player.CheckProgress()
 
     def CheckPlayerHands(self):
         
-        ## Fix this fucking thing first thing in the morning!!
         for player in self.players:
             if self.nonDealerPlayers != 0:
                 if player.CheckHand(self.gameDeck):
@@ -42,38 +44,41 @@ class InputValidation:
         self.outputValue = outputValue
 
     def IntegerValidation(self):
-        try:
-           self.outputValue = int(self.outputValue)
-        except ValueError:
-           print("You did not enter a valid number, please try again.")
-           self.outputValue = 0
+        while True:
+            try:
+                return int(self.outputValue)
+            except ValueError:
+                self.outputValue = input("You did not enter a valid number, please try again. \n")
     
     def ValidNumPlayers(self):
-        validCount = True
         maxNumber = 5
-        self.IntegerValidation()
-        if self.outputValue < 1 or self.outputValue > 5 :
-            print("Please enter a valid number between 1 and 5.")
-            validCount = False
-        return validCount
+        while True:
+            self.outputValue = self.IntegerValidation()
+            if self.outputValue < 1 or self.outputValue > maxNumber:
+                self.outputValue = input("Please enter a valid number between 1 and 5. \n")
+            else:
+                return self.outputValue
+    
+    def MaxBetValidation(self, playerChips):
+        self.outputValue = self.IntegerValidation()
+        return min(self.outputValue, playerChips)
 
     def HitStayValidation(self):
-        validInput = False
-        while not validInput:
+        while True:
             self.outputValue = self.outputValue.upper()
             validInput = (self.outputValue == "HIT" or self.outputValue == "STAY")
-            if not validInput:
+            if validInput:
+                return self.outputValue
+            else:
                 self.outputValue = input("Please enter either hit or stay \n").upper()
-        return self.outputValue
-    
+        
     def ChangeAceValidation(self):
-        validInput = False
-        while not validInput:
-            self.outputValue = self.outputValue.upper()
+        while True:
             validInput = (self.outputValue == "11" or self.outputValue == "1")
-            if not validInput:
-                self.outputValue = input("Please enter either 11 or 1 \n").upper()
-        return self.outputValue  
+            if validInput:
+                return self.outputValue  
+            else:
+                self.outputValue = input("Please enter either 11 or 1 \n")
 
 
 class deck:
@@ -101,12 +106,18 @@ class player:
         self.name = playerName
         self.bust = False
         self.hand = hand()
+        self.chipStack = 500
+        self.currentBet = 0
+
+    def AskBet(self):
+        return InputValidation(input("{}, how much would you like to bet? \n".format(self.name))).MaxBetValidation(self.chipStack)
 
     def CheckBust(self, gameDeck):
         return self.hand.handValue > 21
 
     def CheckProgress(self):
-        print(self.name + ": " + ",".join([card.image for card in self.hand.cards]) + " || HandValue: " + str(self.hand.handValue))
+        print(self.name + ": " + ",".join([card.image for card in self.hand.cards]) + " || HandValue: " + str(self.hand.handValue) +
+              " || CurrentBet: " + str(self.currentBet))
 
      ##   need to get rid of the ace checking
     def CheckHand(self, gameDeck):
@@ -140,6 +151,10 @@ class dealer(player):
     
     def __init__(self, playerName):
         player.__init__(self, playerName)
+        self.secondCardUp = False
+
+    def AskBet(self):
+        return 0
 
     def CheckStay(self):
         MinStayValue = 17
@@ -157,6 +172,13 @@ class dealer(player):
             if checkBust:
                 print(self.name + ", You have busted!")
                 self.bust = True
+
+    def CheckProgress(self):
+        if not self.secondCardUp:
+            print(self.name + ": " + self.hand.cards[0].image + "[]")
+            self.secondCardUp = True
+        else:
+            print(self.name + ": " + ",".join([card.image for card in self.hand.cards]) + " || HandValue: " + str(self.hand.handValue))
 
 class Card:
 
